@@ -59,7 +59,8 @@ export const progressApi = {
     get: async (studentId, asOf) => (await api.get(`/students/${studentId}/progress`, { params: asOf ? { asOf } : {} })).data,
     history: async (studentId) => (await api.get(`/students/${studentId}/history`)).data,
     recordGrade: async (assessmentId, payload) => (await api.post(`/assessments/${assessmentId}/grades`, payload, { headers: { "Idempotency-Key": keyForIntent("grade-" + assessmentId + "-" + JSON.stringify(payload)) } })).data,
-    correctGrade: async (gradeId, payload) => (await api.post(`/grades/${gradeId}/correct`, payload, { headers: { "Idempotency-Key": keyForIntent("correct-" + gradeId + "-" + JSON.stringify(payload)) } })).data
+    correctGrade: async (gradeId, payload) => (await api.post(`/grades/${gradeId}/correct`, payload, { headers: { "Idempotency-Key": keyForIntent("correct-" + gradeId + "-" + JSON.stringify(payload)) } })).data,
+    importGrades: async (payload) => (await api.post("/grades/import", payload, { headers: { "Idempotency-Key": keyForIntent("grade-import-" + JSON.stringify(payload)) } })).data
 };
 export const adminApi = {
     users: async () => (await api.get("/admin/users")).data,

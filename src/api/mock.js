@@ -788,6 +788,7 @@ function state() {
                 requests: parsed.requests ?? seedRequests,
                 progress: migratedProgress,
                 activity: parsed.activity ?? seedActivity,
+                gradeImports: parsed.gradeImports ?? [],
                 academicConfiguration: parsed.academicConfiguration ?? seedAcademicConfiguration
             };
         }
@@ -801,6 +802,7 @@ function state() {
         requests: seedRequests,
         progress: seedProgress,
         activity: seedActivity,
+        gradeImports: [],
         academicConfiguration: seedAcademicConfiguration
     };
 }
@@ -1027,6 +1029,58 @@ export const mockAdapter = async (config) => {
         method === "get") {
         data = s.activity;
         // GRADE OPERATIONS
+    }
+    else if (url === "grades/import" && method === "post") {
+        const rows = Array.isArray(body.rows) ? body.rows : [];
+        if (!body.courseCode || !body.assessmentName || rows.length === 0) {
+            return fail(config, "INVALID_GRADE_IMPORT", 400, "A course, assessment name and at least one grade row are required.");
+        }
+        const studentIds = new Set();
+        for (const row of rows) {
+            if (!row.studentId || !row.studentName || !Number.isFinite(Number(row.score)) || !Number.isFinite(Number(row.maxScore)) || Number(row.maxScore) <= 0 || Number(row.score) < 0 || Number(row.score) > Number(row.maxScore) || studentIds.has(String(row.studentId))) {
+                return fail(config, "INVALID_GRADE_IMPORT", 400, "The grade import contains missing, duplicate or invalid student marks. No records were imported.");
+            }
+            studentIds.add(String(row.studentId));
+        }
+        const importedAt = new Date().toISOString();
+        const importId = createId();
+        const records = rows.map(row => ({
+            id: createId(),
+            studentId: String(row.studentId),
+            studentName: String(row.studentName),
+            courseCode: body.courseCode,
+            courseName: body.courseName || body.courseCode,
+            assessmentName: body.assessmentName,
+            score: Number(row.score),
+            maxScore: Number(row.maxScore),
+            percentage: Math.round((Number(row.score) / Number(row.maxScore)) * 10000) / 100,
+            version: 1,
+            importedAt,
+            importId,
+            professorId: body.professorId || s.user?.id
+        }));
+        s.gradeImports = [...(s.gradeImports || []), ...records];
+        // Reflect the demo student's imported result in the student-facing progress record.
+        // Other student rows remain available in the import ledger for the backend integration.
+        records.filter(record => record.studentId === "stu-1").forEach(record => {
+            const course = s.progress.find(item => item.code === record.courseCode);
+            if (!course) return;
+            const previousVersions = (course.assessments || []).filter(item => item.title === record.assessmentName);
+            course.assessments = [...(course.assessments || []), {
+                title: record.assessmentName,
+                score: record.score,
+                maxScore: record.maxScore,
+                date: importedAt.slice(0, 10),
+                version: previousVersions.length + 1
+            }];
+            const earnedMarks = course.assessments.reduce((total, item) => total + Number(item.score || 0), 0);
+            const maximumMarks = course.assessments.reduce((total, item) => total + Number(item.maxScore || 0), 0);
+            const percentage = maximumMarks ? Math.round((earnedMarks / maximumMarks) * 10000) / 100 : null;
+            course.academic.performance = { earnedMarks, maximumMarks, percentage };
+            course.score = percentage;
+        });
+        data = { success: true, importId, imported: records.length, courseCode: body.courseCode, assessmentName: body.assessmentName, importedAt };
+        status = 201;
     }
     else if (url.startsWith("assessments/") &&
         url.endsWith("/grades") &&
