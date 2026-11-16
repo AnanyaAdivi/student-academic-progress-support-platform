@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sau_sap_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev_superuser_pass
+      POSTGRES_DB: sau_sap
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./src/db/init-roles.sql:/docker-entrypoint-initdb.d/00-init-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sau_sap"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sau_sap_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      CORS_ORIGIN: http://localhost:5173
+      DATABASE_URL: postgres://app_rw:dev_app_rw_pass@postgres:5432/sau_sap
+      MIGRATOR_DATABASE_URL: postgres://migrator:dev_migrator_pass@postgres:5432/sau_sap
+      JWT_ACCESS_SECRET: dev_only_access_secret_min_32_characters_long_123
+      CSRF_SECRET: dev_only_csrf_secret_min_32_characters_long_12345
+      ACCESS_TOKEN_TTL_SECONDS: 900
+      REFRESH_TOKEN_TTL_DAYS: 7
+      LOG_LEVEL: info
+    ports:
+      - "4000:4000"
+
+volumes:
+  pgdata:
