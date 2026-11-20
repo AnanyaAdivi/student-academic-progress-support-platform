@@ -1,0 +1,16 @@
+
+> sau-sap-backend@1.0.0 test
+> vitest run --config vitest.config.js
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/amrit/Downloads/Amritha S Nair/Web Technology/student-academic-progress-support-platform/backend[39m
+
+ [32m✓[39m tests/integration.test.js [2m([22m[2m7 tests[22m[2m)[22m[33m 2701[2mms[22m[39m
+   [33m[2m✓[22m[39m 2. RBAC & IDOR Protection[2m > [22mblocks a student from accessing another student’s academic progress [33m596[2mms[22m[39m
+   [33m[2m✓[22m[39m 3. Support Workflow & Idempotency[2m > [22mcreates a slot, replays an idempotent booking request, and rejects payload mismatch [33m497[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m   Start at [22m 21:52:10
+[2m   Duration [22m 5.38s[2m (transform 158ms, setup 0ms, collect 640ms, tests 2.70s, environment 0ms, prepare 112ms)[22m
+

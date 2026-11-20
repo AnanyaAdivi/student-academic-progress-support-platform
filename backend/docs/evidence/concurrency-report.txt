@@ -1,0 +1,29 @@
+=== Concurrency Harness: 50 students x 20 runs ===
+Timestamp: 2026-11-20T16:20:33.052Z
+
+Run 01: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 02: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 03: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 04: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 05: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 06: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 07: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 08: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 09: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 10: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 11: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 12: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 13: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 14: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 15: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 16: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 17: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 18: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 19: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+Run 20: requestsCreated=50, confirmed=1, conflicts=49, 5xx=0
+
+=== Summary ===
+Total Runs: 20
+Invariant Violations (confirmed != 1): 0
+5xx Errors: 0
+Audit Hash Chain Valid: true (1042 events)
