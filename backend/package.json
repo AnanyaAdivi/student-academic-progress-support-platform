@@ -8,8 +8,9 @@
     "start": "node src/server.js",
     "db:migrate": "node src/db/migrate.js",
     "db:seed": "node src/db/seeds/seed.js",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --config vitest.config.js",
+    "test:watch": "vitest --config vitest.config.js",
+    "test:concurrency": "node tests/concurrency.harness.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -25,7 +26,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "supertest": "^7.0.0",
-    "vitest": "^2.1.4"
+    "supertest": "^7.3.2",
+    "vitest": "^2.1.9"
   }
 }

@@ -23,7 +23,7 @@ export async function appendAuditEvent(client, params) {
   await client.query('SELECT pg_advisory_xact_lock($1)', [AUDIT_CHAIN_LOCK_ID]);
 
   const headRes = await client.query(
-    'SELECT seq::text AS seq, hash FROM audit_events ORDER BY seq DESC LIMIT 1'
+    'SELECT hash FROM audit_events ORDER BY seq DESC LIMIT 1'
   );
   const prevHash = headRes.rows[0]?.hash ?? GENESIS_HASH;
 
