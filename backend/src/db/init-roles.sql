@@ -1,0 +1,26 @@
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'migrator') THEN
+    CREATE ROLE migrator WITH LOGIN PASSWORD 'dev_migrator_pass' CREATEDB;
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'app_rw') THEN
+    CREATE ROLE app_rw WITH LOGIN PASSWORD 'dev_app_rw_pass';
+  END IF;
+END
+$$;
+
+GRANT ALL PRIVILEGES ON DATABASE sau_sap TO migrator;
+GRANT CONNECT ON DATABASE sau_sap TO app_rw;
+
+\connect sau_sap
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "btree_gist";
+
+GRANT ALL ON SCHEMA public TO migrator;
+GRANT USAGE ON SCHEMA public TO app_rw;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE migrator IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_rw;
+ALTER DEFAULT PRIVILEGES FOR ROLE migrator IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO app_rw;
