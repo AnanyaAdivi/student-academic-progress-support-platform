@@ -234,7 +234,7 @@ export const academicRepository = {
       if (rows[0]) return rows[0];
     }
 
-    const digitsMatch = raw.match(/(d+)$/);
+    const digitsMatch = raw.match(/(\d+)$/);
     if (digitsMatch) {
       const digits = digitsMatch[1];
       const candidates = new Set([`student${parseInt(digits, 10)}@sau.int`]);

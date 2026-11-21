@@ -120,3 +120,130 @@ describe('4. Academic Point-in-Time (asOf) & Audit Chain Integrity', () => {
     expect(res.body.valid ?? res.body.ok).toBe(true);
   });
 });
+
+describe('5. Admin Users, Professor Requests & Bulk Grade Import', () => {
+  it('returns registered users for admin without password hashes and blocks non-admins', async () => {
+    const admin = await loginAs(CREDS.admin.email, CREDS.admin.password);
+    const student = await loginAs(CREDS.student1.email, CREDS.student1.password);
+
+    const forbiddenRes = await student.agent.get('/api/admin/users');
+    expect(forbiddenRes.status).toBe(403);
+
+    const usersRes = await admin.agent.get('/api/admin/users');
+    expect(usersRes.status).toBe(200);
+    expect(Array.isArray(usersRes.body)).toBe(true);
+    expect(usersRes.body.length).toBeGreaterThanOrEqual(4);
+
+    const emails = usersRes.body.map((u) => u.email);
+    expect(emails).toContain(CREDS.student1.email);
+    expect(emails).toContain(CREDS.prof1.email);
+    expect(emails).toContain(CREDS.admin.email);
+    for (const u of usersRes.body) {
+      expect(u.id).toBeTruthy();
+      expect(u.name).toBeTruthy();
+      expect(u.role).toBeTruthy();
+      expect(u.passwordHash).toBeUndefined();
+      expect(u.password_hash).toBeUndefined();
+    }
+
+    const verifyRes = await admin.agent.get('/api/admin/audit/verify');
+    expect(verifyRes.status).toBe(200);
+    expect(verifyRes.body.valid).toBe(true);
+    expect(verifyRes.body.checkedEvents).toBeGreaterThan(0);
+    expect(verifyRes.body.firstBrokenRow).toBeNull();
+    expect(verifyRes.body.verifiedAt).toBeTruthy();
+  });
+
+  it('allows professors to view incoming requests for their slots via GET /api/requests?mine=true', async () => {
+    const prof = await loginAs(CREDS.prof1.email, CREDS.prof1.password);
+    const student = await loginAs(CREDS.student2.email, CREDS.student2.password);
+
+    const startTime = new Date(Date.now() + 12 * 24 * 3600 * 1000).toISOString();
+    const endTime = new Date(Date.now() + (12 * 24 + 1) * 3600 * 1000).toISOString();
+
+    const slotRes = await withCsrf(prof.agent.post('/api/slots'), prof.csrfToken).send({
+      startTime,
+      endTime,
+    });
+    expect(slotRes.status).toBe(201);
+    const slotId = slotRes.body.slot.id;
+
+    const reqRes = await withCsrf(
+      student.agent.post(`/api/slots/${slotId}/requests`),
+      student.csrfToken
+    )
+      .set('Idempotency-Key', `idem-${crypto.randomUUID()}`)
+      .send({ topic: 'Dynamic Programming Doubt' });
+    expect(reqRes.status).toBe(201);
+    const createdReqId = reqRes.body.request.id;
+
+    const profListRes = await prof.agent.get('/api/requests?mine=true');
+    expect(profListRes.status).toBe(200);
+    expect(Array.isArray(profListRes.body.requests)).toBe(true);
+    const matched = profListRes.body.requests.find((r) => r.id === createdReqId);
+    expect(matched).toBeTruthy();
+    expect(matched.topic).toBe('Dynamic Programming Doubt');
+    expect(matched.studentName).toBeTruthy();
+  });
+
+  it('imports grades in bulk with idempotency, versioned corrections, and valid audit chain', async () => {
+    const prof = await loginAs(CREDS.prof1.email, CREDS.prof1.password);
+    const student = await loginAs(CREDS.student1.email, CREDS.student1.password);
+    const admin = await loginAs(CREDS.admin.email, CREDS.admin.password);
+
+    const payloadV1 = {
+      courseCode: 'CS 310',
+      courseName: 'Software Engineering',
+      assessmentName: 'Midterm',
+      professorId: prof.user.id,
+      rows: [
+        { rowNumber: 2, studentId: 'SAU24001', studentName: 'Student One', score: 42, maxScore: 50 },
+        { rowNumber: 3, studentId: 'SAU24002', studentName: 'Student Two', score: 38, maxScore: 50 },
+      ],
+    };
+
+    const blockedRes = await withCsrf(
+      student.agent.post('/api/grades/import'),
+      student.csrfToken
+    ).send(payloadV1);
+    expect(blockedRes.status).toBe(403);
+
+    const idemKey = `import-${crypto.randomUUID()}`;
+    const firstImport = await withCsrf(prof.agent.post('/api/grades/import'), prof.csrfToken)
+      .set('Idempotency-Key', idemKey)
+      .send(payloadV1);
+    expect(firstImport.status).toBe(201);
+    expect(firstImport.body.imported).toBe(2);
+    expect(firstImport.body.created).toBe(2);
+    expect(firstImport.body.corrected).toBe(0);
+    expect(firstImport.body.grades[0].versionNo).toBe(1);
+
+    // Idempotent replay returns identical result without creating duplicate versions
+    const replayImport = await withCsrf(prof.agent.post('/api/grades/import'), prof.csrfToken)
+      .set('Idempotency-Key', idemKey)
+      .send(payloadV1);
+    expect(replayImport.status).toBe(201);
+    expect(replayImport.body).toEqual(firstImport.body);
+
+    // Re-importing with updated marks creates v2 superseding v1 instead of overwriting
+    const v1GradeId = firstImport.body.grades[0].id;
+    const correctionImport = await withCsrf(prof.agent.post('/api/grades/import'), prof.csrfToken)
+      .set('Idempotency-Key', `import-${crypto.randomUUID()}`)
+      .send({
+        ...payloadV1,
+        rows: [
+          { rowNumber: 2, studentId: 'SAU24001', studentName: 'Student One', score: 46, maxScore: 50 },
+        ],
+      });
+    expect(correctionImport.status).toBe(201);
+    expect(correctionImport.body.imported).toBe(1);
+    expect(correctionImport.body.created).toBe(0);
+    expect(correctionImport.body.corrected).toBe(1);
+    expect(correctionImport.body.grades[0].versionNo).toBe(2);
+    expect(correctionImport.body.grades[0].supersedesId).toBe(v1GradeId);
+
+    const verifyAfter = await admin.agent.get('/api/admin/audit/verify');
+    expect(verifyAfter.status).toBe(200);
+    expect(verifyAfter.body.valid).toBe(true);
+  });
+});
