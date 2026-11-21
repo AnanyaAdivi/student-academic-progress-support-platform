@@ -9,6 +9,7 @@ export async function verifyAuditChain() {
      ORDER BY seq ASC`
   );
 
+  const verifiedAt = new Date().toISOString();
   let expectedPrevHash = GENESIS_HASH;
 
   for (const row of rows) {
@@ -17,7 +18,10 @@ export async function verifyAuditChain() {
       return {
         valid: false,
         totalEvents: rows.length,
+        checkedEvents: rows.length,
         firstBrokenSeq: seq,
+        firstBrokenRow: seq,
+        verifiedAt,
         reason: 'prev_hash mismatch',
       };
     }
@@ -42,7 +46,10 @@ export async function verifyAuditChain() {
       return {
         valid: false,
         totalEvents: rows.length,
+        checkedEvents: rows.length,
         firstBrokenSeq: seq,
+        firstBrokenRow: seq,
+        verifiedAt,
         reason: 'hash mismatch (tampered payload or metadata)',
       };
     }
@@ -53,7 +60,10 @@ export async function verifyAuditChain() {
   return {
     valid: true,
     totalEvents: rows.length,
+    checkedEvents: rows.length,
     headHash: expectedPrevHash,
     firstBrokenSeq: null,
+    firstBrokenRow: null,
+    verifiedAt,
   };
 }

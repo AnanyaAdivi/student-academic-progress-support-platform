@@ -2,6 +2,7 @@ import { pool } from '../db/pool.js';
 import { appendAuditEvent } from '../audit/audit.writer.js';
 import { toGradeVersionDto, toHistoryEventDto } from '../dto/mappers.js';
 import { AppError } from '../middleware/errorHandler.js';
+import { executeWithIdempotency } from '../middleware/idempotency.js';
 import { academicRepository } from '../repositories/academic.repository.js';
 
 function scoreToLetterAndPoints(score) {
@@ -305,6 +306,179 @@ export const academicService = {
 
       await client.query('COMMIT');
       return toGradeVersionDto(inserted);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+
+  async importGrades(actor, payload, { idempotencyKey = null, requestHash = null } = {}) {
+    if (actor.role !== 'PROFESSOR') {
+      throw new AppError(403, 'FORBIDDEN', 'Only professors can import grades.');
+    }
+
+    const seen = new Set();
+    for (const row of payload.rows) {
+      const key = row.studentId.trim().toLowerCase();
+      if (seen.has(key)) {
+        throw new AppError(
+          400,
+          'VALIDATION_ERROR',
+          `Duplicate studentId "${row.studentId}" found in import rows.`
+        );
+      }
+      seen.add(key);
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const runImport = async () => {
+        let offering = await academicRepository.findOfferingByProfessorAndCourseCode(
+          client,
+          actor.id,
+          payload.courseCode
+        );
+
+        if (!offering) {
+          const existingCourse = await academicRepository.findCourseByCode(
+            client,
+            payload.courseCode
+          );
+          if (existingCourse) {
+            const ownedCodes = await academicRepository.listProfessorCourseCodes(client, actor.id);
+            throw new AppError(
+              403,
+              'FORBIDDEN',
+              `You do not teach ${payload.courseCode}. Your assigned courses: ${ownedCodes.join(", ") || "none"}.`
+            );
+          }
+          offering = await academicRepository.createCourseAndOffering(client, {
+            professorId: actor.id,
+            courseCode: payload.courseCode,
+            courseName: payload.courseName,
+          });
+        }
+
+        const defaultMaxScore = payload.rows[0].maxScore;
+        const assessment = await academicRepository.findOrCreateAssessment(client, {
+          offeringId: offering.offering_id,
+          name: payload.assessmentName,
+          maxScore: defaultMaxScore,
+        });
+
+        const assessmentMax = Number(assessment.max_score);
+        const effectiveIso = new Date().toISOString();
+        const importedGrades = [];
+        let createdCount = 0;
+        let correctedCount = 0;
+
+        for (let i = 0; i < payload.rows.length; i++) {
+          const row = payload.rows[i];
+          const rowLabel = row.rowNumber ?? i + 2;
+
+          if (row.score > assessmentMax) {
+            throw new AppError(
+              400,
+              'VALIDATION_ERROR',
+              `Row ${rowLabel}: score (${row.score}) exceeds assessment max_score (${assessmentMax}).`
+            );
+          }
+
+          const student = await academicRepository.resolveStudentForImport(client, {
+            studentId: row.studentId,
+            studentName: row.studentName,
+          });
+          if (!student) {
+            throw new AppError(
+              400,
+              'VALIDATION_ERROR',
+              `Row ${rowLabel}: student "${row.studentId}" not found.`
+            );
+          }
+
+          await academicRepository.ensureStudentEnrolled(client, student.id, offering.offering_id);
+
+          const latest = await academicRepository.findLatestGradeVersion(
+            client,
+            assessment.id,
+            student.id
+          );
+
+          const isCorrection = Boolean(latest);
+          const nextVersionNo = isCorrection ? Number(latest.version_no) + 1 : 1;
+
+          const inserted = await academicRepository.insertGradeVersion(client, {
+            assessmentId: assessment.id,
+            studentId: student.id,
+            versionNo: nextVersionNo,
+            score: row.score,
+            reason: isCorrection ? 'Bulk spreadsheet grade import' : null,
+            supersedesId: isCorrection ? latest.id : null,
+            recordedBy: actor.id,
+            effectiveAt: effectiveIso,
+          });
+
+          await appendAuditEvent(client, {
+            actorId: actor.id,
+            targetStudentId: student.id,
+            eventType: isCorrection ? 'GRADE_CORRECTED' : 'GRADE_CREATED',
+            entityType: 'GRADE_VERSION',
+            entityId: inserted.id,
+            payload: isCorrection
+              ? {
+                  assessmentId: assessment.id,
+                  versionNo: nextVersionNo,
+                  score: row.score,
+                  reason: 'Bulk spreadsheet grade import',
+                  supersedesId: latest.id,
+                }
+              : {
+                  assessmentId: assessment.id,
+                  versionNo: 1,
+                  score: row.score,
+                },
+          });
+
+          if (isCorrection) correctedCount += 1;
+          else createdCount += 1;
+
+          importedGrades.push(toGradeVersionDto(inserted));
+        }
+
+        return {
+          statusCode: 201,
+          body: {
+            imported: importedGrades.length,
+            created: createdCount,
+            corrected: correctedCount,
+            courseCode: offering.code,
+            courseName: offering.title,
+            assessmentId: assessment.id,
+            assessmentName: assessment.name,
+            grades: importedGrades,
+          },
+        };
+      };
+
+      const result = idempotencyKey
+        ? await executeWithIdempotency(
+            client,
+            {
+              userId: actor.id,
+              route: 'POST:/api/grades/import',
+              idempotencyKey,
+              requestHash,
+            },
+            runImport
+          )
+        : await runImport();
+
+      await client.query('COMMIT');
+      return result;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

@@ -18,7 +18,7 @@ supportRouter.post('/slots', requireAuth, requireRole('PROFESSOR'), validate({ b
 supportRouter.delete('/slots/:id', requireAuth, requireRole('PROFESSOR'), validate({ params: uuidParamSchema }), supportController.deleteSlot);
 
 supportRouter.post('/slots/:id/requests', requireAuth, requireRole('STUDENT'), validate({ params: uuidParamSchema, body: createRequestBodySchema }), supportController.createRequest);
-supportRouter.get('/requests', requireAuth, requireRole('STUDENT'), validate({ query: listRequestsQuerySchema }), supportController.listMyRequests);
+supportRouter.get('/requests', requireAuth, requireRole('STUDENT', 'PROFESSOR'), validate({ query: listRequestsQuerySchema }), supportController.listMyRequests);
 supportRouter.post('/requests/:id/cancel', requireAuth, requireRole('STUDENT'), validate({ params: uuidParamSchema }), supportController.cancelRequest);
 supportRouter.post('/requests/:id/confirm', requireAuth, requireRole('PROFESSOR'), validate({ params: uuidParamSchema }), supportController.confirmRequest);
 supportRouter.post('/requests/:id/reschedule', requireAuth, requireRole('PROFESSOR'), validate({ params: uuidParamSchema, body: rescheduleRequestBodySchema }), supportController.rescheduleRequest);

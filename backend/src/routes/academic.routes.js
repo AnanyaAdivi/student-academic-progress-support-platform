@@ -6,6 +6,7 @@ import { uuidParamSchema } from '../schemas/support.schema.js';
 import {
   correctGradeBodySchema,
   createGradeBodySchema,
+  importGradesBodySchema,
   studentProgressQuerySchema,
 } from '../schemas/academic.schema.js';
 
@@ -32,6 +33,14 @@ academicRouter.post(
   requireRole('PROFESSOR'),
   validate({ params: uuidParamSchema, body: correctGradeBodySchema }),
   academicController.correctGrade
+);
+
+academicRouter.post(
+  '/grades/import',
+  requireAuth,
+  requireRole('PROFESSOR'),
+  validate({ body: importGradesBodySchema }),
+  academicController.importGrades
 );
 
 academicRouter.get(

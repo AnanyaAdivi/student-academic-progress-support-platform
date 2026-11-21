@@ -80,10 +80,11 @@ export const supportController = {
 
   async rescheduleRequest(req, res, next) {
     try {
+      const targetSlotId = req.body.newSlotId || req.body.slotId;
       const request = await supportService.rescheduleRequest(
         req.user,
         req.params.id,
-        req.body.newSlotId
+        targetSlotId
       );
       res.status(200).json({ request });
     } catch (err) {

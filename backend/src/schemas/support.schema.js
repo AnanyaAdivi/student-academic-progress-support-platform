@@ -33,6 +33,11 @@ export const listRequestsQuerySchema = z.object({
 
 export const rescheduleRequestBodySchema = z
   .object({
-    newSlotId: z.string().uuid('Valid newSlotId UUID is required'),
+    newSlotId: z.string().uuid('Valid newSlotId UUID is required').optional(),
+    slotId: z.string().uuid('Valid slotId UUID is required').optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => Boolean(data.newSlotId || data.slotId), {
+    message: 'Either slotId or newSlotId UUID is required',
+    path: ['slotId'],
+  });

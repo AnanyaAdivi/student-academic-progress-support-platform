@@ -107,6 +107,22 @@ export const supportRepository = {
     return rows;
   },
 
+  async listProfessorRequests(professorId) {
+    const { rows } = await pool.query(
+      `SELECT r.id, r.slot_id, r.student_id, stu.full_name AS student_name,
+              r.topic, r.status, r.created_at, r.updated_at,
+              s.professor_id, prof.full_name AS professor_name, s.start_time, s.end_time
+       FROM support_requests r
+       JOIN support_slots s ON s.id = r.slot_id
+       JOIN users stu ON stu.id = r.student_id
+       JOIN users prof ON prof.id = s.professor_id
+       WHERE s.professor_id = $1
+       ORDER BY r.created_at DESC`,
+      [professorId]
+    );
+    return rows;
+  },
+
   async findRequestById(client, requestId, forUpdate = false) {
     const lockClause = forUpdate ? 'FOR UPDATE OF r' : '';
     const { rows } = await client.query(

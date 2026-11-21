@@ -22,3 +22,26 @@ export const correctGradeBodySchema = z
     effectiveAt: z.string().datetime({ offset: true }).optional(),
   })
   .strict();
+
+export const importGradeRowSchema = z
+  .object({
+    rowNumber: z.number().int().positive().optional(),
+    studentId: z.string().trim().min(1, 'studentId is required'),
+    studentName: z.string().trim().min(1).max(200).optional(),
+    score: z.number().min(0, 'Score cannot be negative'),
+    maxScore: z.number().positive('maxScore must be greater than 0'),
+  })
+  .refine((row) => row.score <= row.maxScore, {
+    message: 'Score cannot exceed maxScore',
+    path: ['score'],
+  });
+
+export const importGradesBodySchema = z
+  .object({
+    courseCode: z.string().trim().min(1, 'courseCode is required').max(32),
+    courseName: z.string().trim().max(200).optional(),
+    assessmentName: z.string().trim().min(1, 'assessmentName is required').max(120),
+    professorId: z.string().optional(),
+    rows: z.array(importGradeRowSchema).min(1, 'At least one grade row is required').max(500),
+  })
+  .strict();

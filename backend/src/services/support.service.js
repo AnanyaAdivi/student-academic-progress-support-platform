@@ -165,11 +165,15 @@ export const supportService = {
   },
 
   async listMyRequests(actor) {
-    if (actor.role !== 'STUDENT') {
-      throw new AppError(403, 'FORBIDDEN', 'Only students can view their own support requests.');
+    if (actor.role === 'STUDENT') {
+      const rows = await supportRepository.listStudentRequests(actor.id);
+      return rows.map(toSupportRequestDto);
     }
-    const rows = await supportRepository.listStudentRequests(actor.id);
-    return rows.map(toSupportRequestDto);
+    if (actor.role === 'PROFESSOR') {
+      const rows = await supportRepository.listProfessorRequests(actor.id);
+      return rows.map(toSupportRequestDto);
+    }
+    throw new AppError(403, 'FORBIDDEN', 'Only students and professors can view support requests.');
   },
 
   async cancelRequest(actor, requestId) {
