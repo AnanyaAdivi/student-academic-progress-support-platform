@@ -35,8 +35,8 @@ function clearAuthCookies(res) {
 export const authController = {
   async login(req, res, next) {
     try {
-      const { email, password } = req.body;
-      const { user, accessToken, refreshToken } = await authService.login(email, password);
+      const { email, password, role } = req.body;
+      const { user, accessToken, refreshToken } = await authService.login(email, password, role);
       setAuthCookies(res, accessToken, refreshToken);
       res.status(200).json({ user });
     } catch (err) {

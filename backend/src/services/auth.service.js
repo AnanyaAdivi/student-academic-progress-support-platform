@@ -14,7 +14,7 @@ function generateRawRefreshToken() {
 }
 
 export const authService = {
-  async login(email, password) {
+  async login(email, password, expectedRole) {
     const dbUser = await authRepository.findUserByEmail(email);
     if (!dbUser) {
       throw new AppError(401, 'UNAUTHENTICATED', 'Invalid email or password.');
@@ -23,6 +23,14 @@ export const authService = {
     const valid = await bcrypt.compare(password, dbUser.password_hash);
     if (!valid) {
       throw new AppError(401, 'UNAUTHENTICATED', 'Invalid email or password.');
+    }
+
+    if (expectedRole && dbUser.role !== expectedRole) {
+      throw new AppError(
+        403,
+        'ROLE_MISMATCH',
+        `This account cannot sign in to the ${expectedRole.toLowerCase()} portal.`
+      );
     }
 
     const user = {
