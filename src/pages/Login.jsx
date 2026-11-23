@@ -27,10 +27,14 @@ export default function Login() {
     setError("");
 
     try {
-      await login(email, password, role);
-      navigate(`/${role.toLowerCase()}/dashboard`);
-    } catch {
-      setError("Unable to sign in. Check your credentials and try again.");
+      const signedInUser = await login(email, password, role);
+      navigate(`/${signedInUser.role.toLowerCase()}/dashboard`, { replace: true });
+    } catch (err) {
+      const message =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Unable to sign in. Check your credentials and try again.";
+      setError(message);
     } finally {
       setBusy(false);
     }
@@ -93,6 +97,7 @@ export default function Login() {
                 onClick={() => {
                   setRole(r);
                   setEmail(defaults[r]);
+                  setError("");
                 }}
               >
                 {r[0] + r.slice(1).toLowerCase()}

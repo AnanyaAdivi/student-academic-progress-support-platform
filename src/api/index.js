@@ -99,9 +99,8 @@ function toBackendSlotPayload(payload) {
 
 export const authApi = {
     login: async (email, password, role) => {
-        const data = (
-            await api.post("/auth/login", isMockMode ? { email, password, role } : { email, password })
-        ).data;
+        const payload = role ? { email, password, role } : { email, password };
+        const data = (await api.post("/auth/login", payload)).data;
         return { ...data, user: normalizeUser(data.user ?? data) };
     },
     logout: async () => (await api.post("/auth/logout")).data,
